@@ -31,8 +31,9 @@ module BackportsIssuesControllerPatch
 
     # this method is all copied from a more recent version containing the fix
     def destroy_with_reassign_children_time_spent
+      self_and_descendants = @issues.collect(&:self_and_descendants).flatten
       issues_and_descendants_time_entries = TimeEntry.where([
-        'issue_id IN (?)', @issues.collect(&:self_and_descendants).flatten
+        'issue_id IN (?)', self_and_descendants
       ])
       @hours = issues_and_descendants_time_entries.sum(:hours).to_f
       if @hours > 0
@@ -45,6 +46,9 @@ module BackportsIssuesControllerPatch
           reassign_to = @project.issues.find_by_id(params[:reassign_to_id])
           if reassign_to.nil?
             flash.now[:error] = l(:error_issue_not_found_in_project)
+            return
+          elsif self_and_descendants.include? reassign_to
+            flash.now[:error] = l(:cannot_reassign_time_entries_to_an_issue_going_to_be_deleted)
             return
           else
             issues_and_descendants_time_entries.update_all("issue_id = #{reassign_to.id}")
